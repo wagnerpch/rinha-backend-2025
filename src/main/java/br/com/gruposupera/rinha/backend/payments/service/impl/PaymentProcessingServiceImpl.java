@@ -20,4 +20,9 @@ public class PaymentProcessingServiceImpl implements PaymentProcessingService {
                 request.correlationId(),request.amount(), Instant.now());
         paymentProcessorChain.handle(externalPaymentRequest);
     }
+
+    @Override
+    public void reprocess(ExternalPaymentRequest request) {
+        paymentProcessorChain.handle(request);
+    }
 }

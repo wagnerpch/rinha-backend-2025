@@ -33,7 +33,7 @@ public class FallbackPaymentProcessorHandler implements PaymentProcessorHandler 
 
     @Override
     public void handle(ExternalPaymentRequest request) {
-        if (healthStatusCache.isFallbackProcessorFailing()) {
+        if (!healthStatusCache.isFallbackProcessorFailing()) {
             log.warn("Processador FALLBACK marcado como indisponível pelo Health Check. Fim da cadeia de processamento.");
             if (nextHandler != null) {
                 nextHandler.handle(request);

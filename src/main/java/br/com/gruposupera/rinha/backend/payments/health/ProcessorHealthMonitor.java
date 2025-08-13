@@ -3,6 +3,8 @@ package br.com.gruposupera.rinha.backend.payments.health;
 import br.com.gruposupera.rinha.backend.payments.dto.HealthCheckResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.listener.MessageListenerContainer;
+import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -13,6 +15,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class ProcessorHealthMonitor {
 
     private final HealthStatusCache healthStatusCache;
+    private final RabbitListenerEndpointRegistry listenerRegistry;
     private final WebClient defaultProcessorWebClient;
     private final WebClient fallbackProcessorWebClient;
 
@@ -24,12 +27,12 @@ public class ProcessorHealthMonitor {
                 .retrieve()
                 .bodyToMono(HealthCheckResponse.class)
                 .doOnSuccess(response -> {
-                    healthStatusCache.setDefaultProcessorFailing(response.failing());
-                    log.info("Saúde do processador DEFAULT verificada. Marcando como: {}", response.failing());
+                    healthStatusCache.setDefaultProcessorFailing(true);
+                    log.info("Saúde do processador DEFAULT verificada. Marcando como disponível.");
                 })
                 .doOnError(error -> {
                     log.warn("Falha ao verificar saúde do processador DEFAULT. Marcando como indisponível.");
-                    healthStatusCache.setDefaultProcessorFailing(true);
+                    healthStatusCache.setDefaultProcessorFailing(false);
                 })
                 .subscribe();
 
@@ -37,13 +40,28 @@ public class ProcessorHealthMonitor {
                 .retrieve()
                 .bodyToMono(HealthCheckResponse.class)
                 .doOnSuccess(response -> {
-                    healthStatusCache.setFallbackProcessorFailing(response.failing());
-                    log.info("Saúde do processador FALLBACK verificada. Marcando como: {}", response.failing());
+                    healthStatusCache.setFallbackProcessorFailing(true);
+                    log.info("Saúde do processador FALLBACK verificada. Marcando como disponível.");
                 })
                 .doOnError(error -> {
                     log.warn("Falha ao verificar saúde do processador FALLBACK. Marcando como indisponível.");
-                    healthStatusCache.setFallbackProcessorFailing(true);
+                    healthStatusCache.setFallbackProcessorFailing(false);
                 })
                 .subscribe();
+        controlErrorQueueConsumer();
+    }
+
+    private void controlErrorQueueConsumer() {
+        MessageListenerContainer listenerContainer = listenerRegistry.getListenerContainer("errorListener");
+        boolean processorsHealthy = healthStatusCache.isDefaultProcessorFailing() &&
+                healthStatusCache.isFallbackProcessorFailing();
+
+        if (processorsHealthy) {
+            log.info("Ambos os processadores estão saudáveis. Iniciando consumidor da fila de erros.");
+            listenerContainer.start();
+        } else {
+            log.warn("Um ou mais processadores indisponíveis. Parando consumidor da fila de erros para economizar recursos.");
+            listenerContainer.stop();
+        }
     }
 }

@@ -31,7 +31,7 @@ public class DefaultPaymentProcessorHandler implements PaymentProcessorHandler {
 
     @Override
     public void handle(ExternalPaymentRequest request) {
-        if (healthStatusCache.isDefaultProcessorFailing()) {
+        if (!healthStatusCache.isDefaultProcessorFailing()) {
             log.warn("Processador DEFAULT marcado como indisponível pelo Health Check. Pulando para o próximo handler.");
             nextHandler.handle(request);
             return;
