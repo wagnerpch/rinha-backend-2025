@@ -1,0 +1,45 @@
+services:
+
+  database:
+    image: postgres:17.0-alpine
+    container_name: rinha_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=rinha_pagamentos
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - rinha_db_data:/var/lib/postgresql/data
+    networks:
+      - rinha-net
+    deploy:
+      restart_policy: &default_restart_policy
+        condition: on-failure
+        delay: 2s
+        max_attempts: 10
+        window: 5s
+
+  message_broker:
+    image: rabbitmq:3-management
+    container_name: rinha_rabbit
+    hostname: my-rabbit
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    networks:
+      - rinha-net
+    deploy:
+      restart_policy: *default_restart_policy
+
+networks:
+  rinha-net:
+    driver: bridge
+  payment-processor:
+    external: true
+
+volumes:
+  rinha_db_data:
